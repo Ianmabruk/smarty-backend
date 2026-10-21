@@ -3,6 +3,14 @@ import os
 import urllib.request
 
 
+def _is_production_environment():
+    return (
+        (os.environ.get("FLASK_ENV") or "").lower() in {"production", "prod"}
+        or (os.environ.get("APP_ENV") or "").lower() in {"production", "prod"}
+        or bool(os.environ.get("RENDER"))
+    )
+
+
 def _env_first(*names, default=None):
     for name in names:
         value = (os.getenv(name) or "").strip()
@@ -12,11 +20,21 @@ def _env_first(*names, default=None):
 
 
 def _api_base_url():
-    return (_env_first("OLLAMA_BASE_URL", "AI_API_BASE_URL", "OPENAI_BASE_URL", default="http://127.0.0.1:11434") or "http://127.0.0.1:11434").rstrip("/")
+    value = _env_first("OLLAMA_BASE_URL", "AI_API_BASE_URL", "OPENAI_BASE_URL")
+    if value:
+        return value.rstrip("/")
+    if _is_production_environment():
+        return None
+    return "http://127.0.0.1:11434"
 
 
 def _model_name():
-    return _env_first("OLLAMA_MODEL", "AI_MODEL", "OPENAI_MODEL", default="qwen2.5:7b") or "qwen2.5:7b"
+    value = _env_first("OLLAMA_MODEL", "AI_MODEL", "OPENAI_MODEL")
+    if value:
+        return value
+    if _is_production_environment():
+        return None
+    return "qwen2.5:7b"
 
 
 def _is_ollama_provider():
@@ -95,8 +113,11 @@ def _generate_gemini_reply(messages, system_prompt=None):
 
 
 def _generate_ollama_reply(messages, system_prompt=None):
-    base_url = _api_base_url().rstrip("/")
-    endpoint = f"{base_url}/api/chat"
+    base_url = _api_base_url()
+    if not base_url:
+        raise RuntimeError("Ollama is not configured for this environment. Set OLLAMA_BASE_URL or AI_API_BASE_URL in production.")
+
+    endpoint = f"{base_url.rstrip('/')}/api/chat"
     payload = {
         "model": _model_name(),
         "stream": False,
@@ -149,6 +170,10 @@ def generate_chat_reply(messages, system_prompt=None):
 
     api_key = (os.getenv("AI_API_KEY") or "").strip()
     if not api_key:
+        if _is_production_environment():
+            raise RuntimeError(
+                "No AI provider is configured for this production environment. Set OLLAMA_BASE_URL and OLLAMA_MODEL or AI_API_KEY and AI_API_BASE_URL."
+            )
         return (
             "The AI service isn’t configured on this server yet. "
             "Add a valid AI_API_KEY to the backend environment to enable live chat responses."
