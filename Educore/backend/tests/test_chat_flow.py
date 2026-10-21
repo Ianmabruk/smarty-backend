@@ -169,3 +169,49 @@ def test_generate_image_returns_clear_error_for_non_image_model(monkeypatch):
     assert response.status_code == 400, response.get_data(as_text=True)
     payload = response.get_json()
     assert "image generation" in payload["error"].lower()
+
+
+def test_health_endpoint_is_available(monkeypatch):
+    client, _ = _client(monkeypatch)
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["status"] == "ok"
+    assert payload["service"] == "Educore API"
+
+
+def test_generate_chat_reply_uses_ollama_base_url_env(monkeypatch):
+    monkeypatch.delenv("AI_API_KEY", raising=False)
+    monkeypatch.setenv("OLLAMA_BASE_URL", "https://ollama.example.com")
+    monkeypatch.setenv("OLLAMA_MODEL", "llama3.1:8b")
+
+    seen = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps({"message": {"content": "Ollama says hi from env"}}).encode("utf-8")
+
+    def fake_urlopen(req, timeout=45):
+        seen["url"] = req.full_url
+        seen["data"] = json.loads(req.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
+    import app.ai_service as ai_service
+
+    result = ai_service.generate_chat_reply([
+        {"role": "user", "content": "Explain photosynthesis"},
+    ])
+
+    assert result == "Ollama says hi from env"
+    assert seen["url"].startswith("https://ollama.example.com/api/chat")
+    assert seen["data"]["model"] == "llama3.1:8b"

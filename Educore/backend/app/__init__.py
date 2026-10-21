@@ -32,7 +32,10 @@ def create_app():
     app.config.from_object(Config)
     allowed_origins = [
         origin.strip()
-        for origin in os.environ.get("CORS_ORIGINS", "http://localhost:19006,http://localhost:3000,http://127.0.0.1:3000").split(",")
+        for origin in os.environ.get(
+            "CORS_ORIGINS",
+            "http://localhost:19006,http://localhost:3000,http://127.0.0.1:3000,https://*.netlify.app",
+        ).split(",")
         if origin.strip()
     ]
     if not allowed_origins:
@@ -65,8 +68,12 @@ def create_app():
     app.register_blueprint(chat.bp, url_prefix="/api")
     app.register_blueprint(notes.bp, url_prefix="/api")
 
-    @app.route("/")
+    @app.route("/health")
     def health():
-        return {"status": "ok", "app": "Educore API"}
+        return {"status": "ok", "service": "Educore API"}
+
+    @app.route("/")
+    def root():
+        return {"status": "ok", "service": "Educore API"}
 
     return app

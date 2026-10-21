@@ -3,12 +3,20 @@ import os
 import urllib.request
 
 
+def _env_first(*names, default=None):
+    for name in names:
+        value = (os.getenv(name) or "").strip()
+        if value:
+            return value
+    return default
+
+
 def _api_base_url():
-    return (os.getenv("AI_API_BASE_URL") or os.getenv("OPENAI_BASE_URL") or "http://127.0.0.1:11434").rstrip("/")
+    return (_env_first("OLLAMA_BASE_URL", "AI_API_BASE_URL", "OPENAI_BASE_URL", default="http://127.0.0.1:11434") or "http://127.0.0.1:11434").rstrip("/")
 
 
 def _model_name():
-    return os.getenv("AI_MODEL") or os.getenv("OPENAI_MODEL") or "qwen2.5:7b"
+    return _env_first("OLLAMA_MODEL", "AI_MODEL", "OPENAI_MODEL", default="qwen2.5:7b") or "qwen2.5:7b"
 
 
 def _is_ollama_provider():
