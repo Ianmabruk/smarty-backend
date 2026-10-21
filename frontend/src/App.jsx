@@ -2,7 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import './styles.css';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE = (
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.REACT_APP_API_BASE ||
+  'http://127.0.0.1:5000/api'
+);
 
 function readToken() {
   try {
@@ -26,27 +30,44 @@ function clearToken() {
 
 async function apiFetch(path, options = {}) {
   const token = readToken();
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
+  const controller = new AbortController();
+  const timeoutMs = 20000;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  if (response.status === 401) {
-    clearToken();
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {}),
+      },
+    });
+
+    if (response.status === 401) {
+      clearToken();
+    }
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const message = payload?.error || payload?.message || 'Request failed';
+      throw new Error(message);
+    }
+
+    return payload;
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('The request timed out. Check that the backend is running and the configured API URL is correct.');
+    }
+    if (error instanceof TypeError) {
+      throw new Error('Network error. Check your API URL and ensure the backend is reachable.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const payload = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    const message = payload?.error || payload?.message || 'Request failed';
-    throw new Error(message);
-  }
-
-  return payload;
 }
 
 const AuthContext = React.createContext(null);
@@ -128,6 +149,7 @@ function LoginScreen() {
       return;
     }
 
+    if (loading) return;
     setLoading(true);
     setError('');
 
@@ -201,6 +223,7 @@ function RegisterScreen() {
       return;
     }
 
+    if (loading) return;
     setLoading(true);
     setError('');
 

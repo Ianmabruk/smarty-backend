@@ -20,33 +20,50 @@ def _env_first(*names, default=None):
 
 
 def _api_base_url():
-    value = _env_first("OLLAMA_BASE_URL", "AI_API_BASE_URL", "OPENAI_BASE_URL")
-    if value:
-        return value.rstrip("/")
+    ollama_base = _env_first("OLLAMA_BASE_URL")
+    ai_base = _env_first("AI_API_BASE_URL", "OPENAI_BASE_URL")
+    model_name = (_model_name() or "").lower()
+
+    if ai_base and ("generativelanguage.googleapis.com" in ai_base.lower() or model_name.startswith("gemini")):
+        return ai_base.rstrip("/")
+    if ollama_base:
+        return ollama_base.rstrip("/")
+    if ai_base:
+        return ai_base.rstrip("/")
     if _is_production_environment():
         return None
     return "http://127.0.0.1:11434"
 
 
 def _model_name():
-    value = _env_first("OLLAMA_MODEL", "AI_MODEL", "OPENAI_MODEL")
-    if value:
-        return value
+    ai_base = (_env_first("AI_API_BASE_URL", "OPENAI_BASE_URL") or "").lower()
+    ai_model = _env_first("AI_MODEL", "OPENAI_MODEL")
+    ollama_model = _env_first("OLLAMA_MODEL")
+
+    if "generativelanguage.googleapis.com" in ai_base or (ai_model or "").lower().startswith("gemini"):
+        return ai_model or "gemini-2.5-flash"
+    if ollama_model:
+        return ollama_model
+    if ai_model:
+        return ai_model
     if _is_production_environment():
         return None
     return "qwen2.5:7b"
 
 
 def _is_ollama_provider():
-    base = _api_base_url().lower()
-    model = _model_name().lower()
-    return "ollama" in base or "127.0.0.1:11434" in base or "localhost:11434" in base or model.startswith("qwen") or model.startswith("llama")
+    ai_base = (_env_first("AI_API_BASE_URL", "OPENAI_BASE_URL") or "").lower()
+    ollama_base = (_env_first("OLLAMA_BASE_URL") or "").lower()
+    model = (_model_name() or "").lower()
+    if "generativelanguage.googleapis.com" in ai_base or model.startswith("gemini"):
+        return False
+    return bool(ollama_base) or "127.0.0.1:11434" in ai_base or "localhost:11434" in ai_base or model.startswith("qwen") or model.startswith("llama")
 
 
 def _is_gemini_provider():
-    base = _api_base_url().lower()
-    model = _model_name().lower()
-    return "generativelanguage.googleapis.com" in base or model.startswith("gemini")
+    ai_base = (_env_first("AI_API_BASE_URL", "OPENAI_BASE_URL") or "").lower()
+    model = (_model_name() or "").lower()
+    return "generativelanguage.googleapis.com" in ai_base or model.startswith("gemini")
 
 
 def _generate_gemini_reply(messages, system_prompt=None):
