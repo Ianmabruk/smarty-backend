@@ -1,0 +1,631 @@
+:root {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  background: #f3f7ee;
+  color: #17301a;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  margin: 0;
+  min-height: 100%;
+  height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #edf7d4 0%, #f7fbf0 100%);
+}
+
+button, input, textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.page {
+  width: min(1180px, calc(100% - 32px));
+  margin: 32px auto 48px;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #d2f08a;
+  border-radius: 24px;
+  box-shadow: 0 8px 30px rgba(34, 62, 32, 0.06);
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 28px;
+  background: rgba(245, 255, 233, 0.9);
+  border-bottom: 1px solid #d9f59a;
+  backdrop-filter: blur(8px);
+}
+
+.brand-inline {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.nav-item,
+.chip,
+.mini-chip,
+.option-btn,
+.list-item,
+.conversation-item,
+.mini-btn {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: #f0ffd0;
+  color: #203b1d;
+  transition: all 0.2s ease;
+}
+
+.nav-item {
+  padding: 10px 16px;
+  font-weight: 600;
+}
+
+.nav-item.active,
+.chip.selected,
+.mini-chip.selected {
+  background: linear-gradient(135deg, #c9ff6a, #a7ee4d);
+  border-color: #9ddf3d;
+}
+
+.auth-page,
+.landing-page {
+  min-height: calc(100vh - 120px);
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 32px;
+  align-items: center;
+}
+
+.landing-shell {
+  padding: 42px 32px;
+  margin: 32px auto;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 500px;
+  background: linear-gradient(135deg, #c3ff5a 0%, #f2ffd5 100%);
+}
+
+.brand-mark,
+.mini-logo,
+.course-icon,
+.avatar {
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #dcff8d, #b2f14d);
+  color: #183422;
+  font-weight: 900;
+}
+
+.brand-mark {
+  width: 120px;
+  height: 120px;
+  font-size: 52px;
+  margin-bottom: 22px;
+}
+
+.mini-logo {
+  width: 46px;
+  height: 46px;
+}
+
+.auth-hero,
+.auth-form,
+.editor,
+.profile-header,
+.chat-panel,
+.chat-sidebar,
+.question-box,
+.course-hero,
+.hero-strip,
+.ai-panel,
+.search-row,
+.dashboard-hero {
+  padding: 26px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.brand-name {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+h1, h2, h3, h4, p {
+  margin-top: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-weight: 600;
+  color: #294128;
+}
+
+.field input,
+.field textarea,
+textarea,
+.search-row input,
+.editor input,
+.chat-composer textarea,
+.content-block input {
+  width: 100%;
+  border: 1px solid #d5e7aa;
+  border-radius: 14px;
+  background: #f9fff1;
+  color: #19331d;
+  padding: 12px 14px;
+  outline: none;
+}
+
+.field input:focus,
+textarea:focus,
+.search-row input:focus,
+.editor input:focus,
+.chat-composer textarea:focus {
+  border-color: #9edb4d;
+  box-shadow: 0 0 0 4px rgba(176, 240, 75, 0.12);
+}
+
+.btn,
+.text-link,
+.inline-link {
+  border: none;
+  background: transparent;
+  font-weight: 700;
+}
+
+.btn {
+  border-radius: 14px;
+  padding: 12px 18px;
+  transition: transform 0.15s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn.primary {
+  background: linear-gradient(135deg, #d8ff7d, #b4ef50);
+  color: #18351c;
+}
+
+.btn.secondary {
+  background: #efffe0;
+  border: 1px solid #d5f39d;
+  color: #19331d;
+}
+
+.btn.danger {
+  background: #ffe5e5;
+  color: #8b1d1d;
+}
+
+.full {
+  width: 100%;
+}
+
+.error-box,
+.ai-response,
+.empty-box,
+.loading-box {
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: #f5f9eb;
+  border: 1px solid #dce9bb;
+  color: #294b2f;
+}
+
+.error-box {
+  background: #fff2f2;
+  border-color: #f7c4c4;
+  color: #8b1d1d;
+}
+
+.inline-link,
+.text-link {
+  color: #285826;
+  text-align: left;
+}
+
+.inline-link span,
+.text-link span {
+  font-weight: 800;
+}
+
+.dashboard-hero {
+  margin-bottom: 22px;
+}
+
+.hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.stats-grid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.stat-card {
+  padding: 18px;
+  border-radius: 18px;
+  background: #f4ffea;
+  border: 1px solid #d7f5aa;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stat-card.accent {
+  background: #ebffd7;
+}
+
+.stat-card.success {
+  background: #e2f9cf;
+}
+
+.stat-card span {
+  color: #4d6b3f;
+}
+
+.stat-card strong {
+  font-size: clamp(1.5rem, 2vw, 2.2rem);
+}
+
+.ai-panel,
+.search-row,
+.content-block,
+.editor,
+.profile-header,
+.chat-panel,
+.chat-sidebar,
+.course-hero,
+.hero-strip {
+  margin-bottom: 24px;
+}
+
+.panel-header,
+.section-header,
+.sidebar-header,
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.spark-badge {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  background: #ebffd7;
+  border-radius: 12px;
+  font-size: 1.2rem;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 18px;
+}
+
+.chip,
+.mini-chip {
+  padding: 8px 12px;
+}
+
+.course-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+}
+
+.course-card {
+  padding: 22px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(245,255,233,0.95));
+  border: 1px solid #d8f4a8;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.course-icon {
+  width: 52px;
+  height: 52px;
+  font-size: 1.4rem;
+}
+
+.course-icon.large {
+  width: 72px;
+  height: 72px;
+  font-size: 2rem;
+}
+
+.course-meta {
+  color: #5a7560;
+  font-size: 0.95rem;
+}
+
+.course-footer {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pill {
+  background: #ebffd9;
+  border: 1px solid #d9f59a;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+}
+
+.arrow {
+  font-size: 1.35rem;
+}
+
+.list-item,
+.conversation-item {
+  width: 100%;
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+  margin-bottom: 12px;
+}
+
+.list-item.static,
+.conversation-item {
+  background: #f8ffef;
+  border-color: #dfeeb7;
+}
+
+.chat-shell {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 20px;
+}
+
+.chat-sidebar {
+  min-height: 640px;
+}
+
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 640px;
+}
+
+.chat-messages {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.message-row {
+  display: flex;
+}
+
+.message-row.user {
+  justify-content: flex-end;
+}
+
+.message-bubble {
+  max-width: 75%;
+  background: #f0ffd0;
+  border-radius: 18px 18px 18px 6px;
+  padding: 12px 14px;
+}
+
+.message-row.user .message-bubble {
+  background: #d8ff7d;
+  border-radius: 18px 18px 6px 18px;
+}
+
+.chat-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mini-btn {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+}
+
+.option-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.progress-bar {
+  height: 16px;
+  border-radius: 999px;
+  background: #eef7df;
+  overflow: hidden;
+  border: 1px solid #dff0ae;
+  margin: 18px 0;
+}
+
+.progress-bar > div {
+  height: 100%;
+  background: linear-gradient(90deg, #d9ff7d, #8fe845);
+}
+
+.profile-header {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.avatar {
+  width: 72px;
+  height: 72px;
+  font-size: 1.8rem;
+}
+
+.role-pill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #e7ffb5;
+  color: #254b24;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.question-box {
+  margin-bottom: 18px;
+}
+
+.option-btn {
+  width: 100%;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  text-align: left;
+}
+
+.option-btn.selected {
+  background: #ebffd9;
+  border-color: #d1ec9a;
+}
+
+.radio-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #2c5c2d;
+  display: inline-block;
+}
+
+.result-box {
+  padding: 22px;
+  border-radius: 18px;
+  background: #efffe2;
+  border: 1px solid #d9f2a8;
+}
+
+.score-number {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 800;
+  margin: 8px 0;
+}
+
+.score-number span {
+  font-size: 1.2rem;
+  color: #42613f;
+}
+
+@media (max-width: 900px) {
+  .auth-page,
+  .chat-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    width: min(100% - 18px, 1180px);
+    margin-top: 18px;
+  }
+
+  .landing-shell,
+  .auth-hero,
+  .auth-form,
+  .dashboard-hero,
+  .course-card,
+  .chat-panel,
+  .chat-sidebar,
+  .profile-header,
+  .editor,
+  .hero-strip,
+  .course-hero {
+    padding: 18px;
+  }
+
+  .stats-grid,
+  .stats-grid.three {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-actions,
+  .nav {
+    width: 100%;
+  }
+}

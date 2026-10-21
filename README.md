@@ -1,8 +1,30 @@
-# Educore Backend
+# Educore
 
-Flask API for the Educore education platform.
+Educore is an education platform with a Python Flask backend API and a frontend app.
 
-## Quick Start
+## Project Structure
+
+```text
+Educore/
+├── backend/           # Flask API
+│   ├── app/
+│   ├── config.py
+│   ├── manage.py
+│   ├── wsgi.py
+│   ├── requirements.txt
+│   ├── runtime.txt
+│   └── .env.example
+├── frontend/          # App frontend
+│   ├── App.js
+│   ├── package.json
+│   └── screens/
+├── .python-version
+├── runtime.txt
+├── README.md
+└── .gitignore
+```
+
+## Backend Setup
 
 ```bash
 cd backend
@@ -13,10 +35,10 @@ cp .env.example .env
 python manage.py
 ```
 
-The server runs on `http://0.0.0.0:5000` with debug enabled.
+The server runs on `http://0.0.0.0:5000` with debug enabled for local development.
 API endpoints are namespaced under `/api`.
 
-## Endpoints
+## API summary
 
 - `POST /api/auth/register`
 - `POST /api/auth/login`
@@ -41,3 +63,22 @@ API endpoints are namespaced under `/api`.
 - `GET  /api/users`
 - `POST /api/ai/explain`
 - `POST /api/ai/summarize`
+
+## Frontend Setup
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+expo start
+```
+
+## Default Accounts
+
+- Admin: `admin@educcore.com` / `admin123`
+- Teacher: `teacher@educcore.com` / `teacher123`
+
+## Deployment note
+
+This project is pinned to Python 3.12 for Render compatibility. The runtime files at the repo root and backend root must stay aligned with the deployed Python version.
+
