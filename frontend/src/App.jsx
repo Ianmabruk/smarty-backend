@@ -1,74 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import './styles.css';
-
-const API_BASE = (
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.REACT_APP_API_BASE ||
-  'http://127.0.0.1:5000/api'
-);
-
-function readToken() {
-  try {
-    return localStorage.getItem('accessToken');
-  } catch {
-    return null;
-  }
-}
-
-function saveToken(token) {
-  try {
-    localStorage.setItem('accessToken', token);
-  } catch {}
-}
-
-function clearToken() {
-  try {
-    localStorage.removeItem('accessToken');
-  } catch {}
-}
-
-async function apiFetch(path, options = {}) {
-  const token = readToken();
-  const controller = new AbortController();
-  const timeoutMs = 20000;
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const response = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options.headers || {}),
-      },
-    });
-
-    if (response.status === 401) {
-      clearToken();
-    }
-
-    const payload = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      const message = payload?.error || payload?.message || 'Request failed';
-      throw new Error(message);
-    }
-
-    return payload;
-  } catch (error) {
-    if (error?.name === 'AbortError') {
-      throw new Error('The request timed out. Check that the backend is running and the configured API URL is correct.');
-    }
-    if (error instanceof TypeError) {
-      throw new Error('Network error. Check your API URL and ensure the backend is reachable.');
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
+import {
+  API_BASE,
+  API_CONFIG,
+  ApiError,
+  apiFetch,
+  authAPI,
+  clearToken,
+  readToken,
+  saveToken,
+} from './api';
 
 const AuthContext = React.createContext(null);
 
@@ -134,43 +76,71 @@ function LandingScreen() {
   );
 }
 
+function ConfigBanner() {
+  if (API_CONFIG.valid) return null;
+  return (
+    <div className="config-banner" role="status">
+      <strong>The app is not connected to the backend yet.</strong>
+      <span>{API_CONFIG.reason}</span>
+      <span className="config-banner-detail">Configured API base: {API_BASE || 'not set'}</span>
+    </div>
+  );
+}
+
+function AuthError({ error, onRetry }) {
+  if (!error) return null;
+  const retryable = error instanceof ApiError ? error.isRetryable : false;
+  return (
+    <div className="error-box" role="alert">
+      <span>{error.message || 'Something went wrong. Please try again.'}</span>
+      {retryable && onRetry ? (
+        <button type="button" className="inline-link" onClick={onRetry}>
+          <span>Try again</span>
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function LoginScreen() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  const submit = async () => {
     if (!email || !password) {
-      setError('Please fill in all fields');
+      setError(new Error('Please fill in all fields'));
       return;
     }
 
     if (loading) return;
     setLoading(true);
-    setError('');
+    setError(null);
 
     try {
-      const res = await apiFetch('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
+      const res = await authAPI.login({ email, password });
       const { token, user } = res.data;
       saveToken(token);
       login(user);
       navigate('/');
     } catch (err) {
-      setError(err.message || 'Invalid email or password');
+      setError(err);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    await submit();
+  };
+
   return (
     <div className="page auth-page">
+      <ConfigBanner />
       <div className="auth-hero card">
         <div className="brand-row">
           <div className="mini-logo">S</div>
@@ -190,7 +160,7 @@ function LoginScreen() {
           <span>Password</span>
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" required />
         </label>
-        {error && <div className="error-box">{error}</div>}
+        <AuthError error={error} onRetry={submit} />
         <button className="btn primary full" type="submit" disabled={loading}>{loading ? 'Signing in...' : 'Sign In'}</button>
         <button type="button" className="inline-link" onClick={() => navigate('/register')}>Need an account? <span>Sign Up</span></button>
       </form>
@@ -205,46 +175,48 @@ function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  const submit = async () => {
     if (!name || !email || !password || !confirm) {
-      setError('Please fill in all fields');
+      setError(new Error('Please fill in all fields'));
       return;
     }
     if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setError(new Error('Password must be at least 6 characters'));
       return;
     }
     if (password !== confirm) {
-      setError('Passwords do not match');
+      setError(new Error('Passwords do not match'));
       return;
     }
 
     if (loading) return;
     setLoading(true);
-    setError('');
+    setError(null);
 
     try {
-      const res = await apiFetch('/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({ name, email, password }),
-      });
+      const res = await authAPI.register({ name, email, password });
       const { token, user } = res.data;
       saveToken(token);
       login(user);
       navigate('/');
     } catch (err) {
-      setError(err.message || 'Registration failed');
+      setError(err);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    await submit();
+  };
+
   return (
     <div className="page auth-page">
+      <ConfigBanner />
       <div className="auth-hero card">
         <div className="brand-row">
           <div className="mini-logo">S</div>
@@ -272,7 +244,7 @@ function RegisterScreen() {
           <span>Confirm password</span>
           <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Repeat password" required />
         </label>
-        {error && <div className="error-box">{error}</div>}
+        <AuthError error={error} onRetry={submit} />
         <button className="btn primary full" type="submit" disabled={loading}>{loading ? 'Creating account...' : 'Create Account'}</button>
         <button type="button" className="inline-link" onClick={() => navigate('/login')}>Already registered? <span>Sign In</span></button>
       </form>

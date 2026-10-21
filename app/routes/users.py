@@ -52,7 +52,7 @@ def get_user(user_id):
         return error("Unauthorized", 401)
     if current.role != "admin" and current.id != user_id:
         return error("Forbidden", 403)
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     return success(user.to_dict())
 
 

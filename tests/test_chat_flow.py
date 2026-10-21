@@ -215,3 +215,31 @@ def test_generate_chat_reply_uses_ollama_base_url_env(monkeypatch):
     assert result == "Ollama says hi from env"
     assert seen["url"].startswith("https://ollama.example.com/api/chat")
     assert seen["data"]["model"] == "llama3.1:8b"
+
+
+def test_missing_ollama_base_url_does_not_fallback_to_localhost(monkeypatch):
+    monkeypatch.setenv("FLASK_ENV", "production")
+    monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
+    monkeypatch.delenv("AI_API_BASE_URL", raising=False)
+    monkeypatch.delenv("AI_MODEL", raising=False)
+    monkeypatch.delenv("OLLAMA_MODEL", raising=False)
+    monkeypatch.delenv("AI_API_KEY", raising=False)
+
+    import app.ai_service as ai_service
+
+    assert ai_service._api_base_url() is None
+    assert ai_service._model_name() is None
+
+
+def test_production_requires_database_url(monkeypatch):
+    monkeypatch.setenv("FLASK_ENV", "production")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    import config
+
+    try:
+        config._resolve_database_url()
+    except RuntimeError as exc:
+        assert "DATABASE_URL" in str(exc)
+    else:
+        raise AssertionError("Expected a RuntimeError when DATABASE_URL is missing in production")

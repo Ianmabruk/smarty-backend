@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: smarty-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 2 --timeout 120 --access-logfile -
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      # Exact origin of the deployed Netlify frontend, comma separated.
+      # Example: https://my-site.netlify.app
+      - key: CORS_ORIGINS
+        sync: false
+      # Connection string of the existing database (Render Postgres or another provider).
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: JWT_ACCESS_TOKEN_EXPIRES_SECONDS
+        value: 86400
+      # Server-side only AI configuration. Never exposed to the frontend.
+      - key: OLLAMA_BASE_URL
+        sync: false
+      - key: OLLAMA_MODEL
+        sync: false
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_API_BASE_URL
+        sync: false
+      - key: AI_MODEL
+        sync: false

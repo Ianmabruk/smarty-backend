@@ -270,6 +270,38 @@ textarea:focus,
   color: #8b1d1d;
 }
 
+.error-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.error-box .inline-link {
+  color: #8b1d1d;
+}
+
+.config-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto 18px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: #fff8e6;
+  border: 1px solid #f2d68a;
+  color: #6b4b00;
+  font-size: 14px;
+}
+
+.config-banner-detail {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  opacity: 0.85;
+  word-break: break-all;
+}
+
 .inline-link,
 .text-link {
   color: #285826;

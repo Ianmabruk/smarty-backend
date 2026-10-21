@@ -4,6 +4,7 @@ import app.ai_service as ai_service
 from app.utils import success, error, get_current_user
 from app.models import Lesson
 from app.data_tools import route_data_query
+from app import db
 
 bp = Blueprint("ai", __name__)
 
@@ -41,7 +42,10 @@ def explain():
 
     lesson = None
     if lesson_id:
-        lesson = Lesson.query.get(lesson_id)
+        try:
+            lesson = db.session.get(Lesson, int(lesson_id))
+        except (TypeError, ValueError):
+            lesson = None
 
     if query:
         tool_result = route_data_query(query)
