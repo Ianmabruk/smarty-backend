@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import { timingSafeEqual } from 'node:crypto'
 import { randomBytes } from 'node:crypto'
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify'
 import cors from '@fastify/cors'
@@ -25,7 +26,7 @@ export const app = Fastify({
 const envSchema = z.object({
   PORT: z.coerce.number().default(4000),
   HOST: z.string().default('0.0.0.0'),
-  JWT_SECRET: z.string().default('serve-dev-secret'),
+  JWT_SECRET: z.string().min(16),
   DATABASE_URL: z.string().optional(),
   REDIS_URL: z.string().default('redis://localhost:6379'),
   SERVER_NAME: z.string().default('server-1'),
@@ -44,7 +45,7 @@ const loginScheduler = new LoginScheduler({ instanceId: env.SERVER_NAME, redis: 
 
 async function getCurrentUser(request: FastifyRequest) {
   const jwtPayload = request.user as { email?: string } | undefined
-  const email = jwtPayload?.email
+  const email = jwtPayload?.email ? normalizeEmail(jwtPayload.email) : undefined
 
   if (!email) {
     return null
@@ -71,6 +72,10 @@ app.decorate('authenticate', async function (request: FastifyRequest, reply: Fas
     throw reply.code(401).send({ message: 'Unauthorized' })
   }
 })
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase()
+}
 
 function normalizeWebsiteUrl(rawUrl: string) {
   const trimmed = rawUrl.trim()
@@ -175,6 +180,15 @@ app.post('/providers/test-sms', { preValidation: [app.authenticate] }, async (re
 })
 
 app.post('/webhooks/brevo', async (request, reply) => {
+  const secret = process.env.BREVO_WEBHOOK_SECRET
+  if (secret) {
+    const provided = String(request.headers['x-brevo-signature'] ?? '')
+    let okSig = false
+    try { okSig = provided.length === secret.length && timingSafeEqual(Buffer.from(provided), Buffer.from(secret)) } catch { okSig = false }
+    if (!okSig) {
+      return reply.code(401).send({ ok: false, message: 'Invalid webhook signature.' })
+    }
+  }
   const payload = request.body as Record<string, unknown>
   if (!payload || typeof payload !== 'object') {
     return reply.code(400).send({ ok: false, message: 'Invalid Brevo webhook payload.' })
@@ -198,6 +212,15 @@ app.post('/webhooks/brevo', async (request, reply) => {
 })
 
 app.post('/webhooks/sendafrica', async (request, reply) => {
+  const secret = process.env.SENDAFRICA_WEBHOOK_SECRET
+  if (secret) {
+    const provided = String(request.headers['x-sendafrica-signature'] ?? '')
+    let okSig = false
+    try { okSig = provided.length === secret.length && timingSafeEqual(Buffer.from(provided), Buffer.from(secret)) } catch { okSig = false }
+    if (!okSig) {
+      return reply.code(401).send({ ok: false, message: 'Invalid webhook signature.' })
+    }
+  }
   const payload = request.body as Record<string, unknown>
   if (!payload || typeof payload !== 'object') {
     return reply.code(400).send({ ok: false, message: 'Invalid SendAfrica webhook payload.' })
@@ -547,13 +570,15 @@ app.post('/auth/register', async (request, reply) => {
   const body = z.object({
     fullName: z.string().min(2),
     businessName: z.string().min(2),
-    email: z.string().email(),
+    email: z.string().trim().email(),
     password: z.string().min(8),
   }).parse(request.body)
 
+  const normalizedEmail = normalizeEmail(body.email)
+
   try {
     const existingUser = await prisma.user.findUnique({
-      where: { email: body.email },
+      where: { email: normalizedEmail },
     })
 
     if (existingUser) {
@@ -570,7 +595,7 @@ app.post('/auth/register', async (request, reply) => {
     const user = await prisma.user.create({
       data: {
         fullName: body.fullName,
-        email: body.email,
+        email: normalizedEmail,
         passwordHash: hashPassword(body.password),
         tenantId: tenant.id,
       },
@@ -593,39 +618,17 @@ app.post('/auth/register', async (request, reply) => {
     })
   } catch (error) {
     app.log.error(error)
-    return reply.code(503).send({
-      message: 'Authentication service is temporarily unavailable. Please try again in a moment.',
-    })
+    return reply.code(503).send({ message: 'Registration service is temporarily unavailable.' })
   }
 })
 
 app.post('/auth/login', async (request, reply) => {
   const body = z.object({
-    email: z.string().email(),
+    email: z.string().trim().email(),
     password: z.string().min(8),
   }).parse(request.body)
 
-  const isDemoLogin = body.email === 'demo@example.com' && body.password === 'DemoPass123'
-
-  if (isDemoLogin) {
-    const token = app.jwt.sign({
-      sub: 'demo-user',
-      email: body.email,
-      businessName: 'Northwind Services',
-      fullName: 'Demo User',
-    })
-
-    return {
-      token,
-      user: {
-        email: body.email,
-        fullName: 'Demo User',
-        businessName: 'Northwind Services',
-      },
-      server: 'server-1',
-    }
-  }
-
+  const normalizedEmail = normalizeEmail(body.email)
   const assignedServer = await loginScheduler.selectServerForLogin()
   const reserved = await loginScheduler.reserveSlot(assignedServer)
 
@@ -641,7 +644,7 @@ app.post('/auth/login', async (request, reply) => {
 
   try {
     const user = await prisma.user.findUnique({
-      where: { email: body.email },
+      where: { email: normalizedEmail },
       include: { tenant: true },
     })
 
@@ -669,6 +672,7 @@ app.post('/auth/login', async (request, reply) => {
     }
   } catch (error) {
     app.log.error(error)
+
     return reply.code(503).send({
       message: 'Authentication service is temporarily unavailable. Please try again in a moment.',
     })
@@ -700,12 +704,32 @@ app.get('/contacts', { preValidation: [app.authenticate] }, async (request, repl
     return reply.code(401).send({ message: 'Unauthorized' })
   }
 
-  const contacts = await prisma.contact.findMany({
-    where: { tenantId: user.tenantId },
-    orderBy: { createdAt: 'desc' },
-  })
+  const query = z.object({
+    page: z.coerce.number().int().positive().default(1),
+    pageSize: z.coerce.number().int().positive().max(100).default(25),
+    search: z.string().trim().optional(),
+  }).parse(request.query)
 
-  return { contacts }
+  const where: any = { tenantId: user.tenantId }
+  if (query.search) {
+    where.OR = [
+      { name: { contains: query.search, mode: 'insensitive' } },
+      { email: { contains: query.search, mode: 'insensitive' } },
+      { phone: { contains: query.search, mode: 'insensitive' } },
+    ]
+  }
+
+  const [contacts, total] = await Promise.all([
+    prisma.contact.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (query.page - 1) * query.pageSize,
+      take: query.pageSize,
+    }),
+    prisma.contact.count({ where }),
+  ])
+
+  return { contacts, page: query.page, pageSize: query.pageSize, total }
 })
 
 app.post('/contacts', { preValidation: [app.authenticate] }, async (request, reply) => {
@@ -735,6 +759,24 @@ app.post('/contacts', { preValidation: [app.authenticate] }, async (request, rep
   })
 
   return reply.code(201).send({ contact })
+})
+
+app.get('/contacts/export', { preValidation: [app.authenticate] }, async (request, reply) => {
+  const user = await getCurrentUser(request)
+  if (!user) return reply.code(401).send({ message: 'Unauthorized' })
+
+  const contacts = await prisma.contact.findMany({
+    where: { tenantId: user.tenantId },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  const header = 'name,email,phone,status,consent'
+  const lines = contacts.map((c) => [c.name, c.email ?? '', c.phone ?? '', c.status, c.consent].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+  const csv = [header, ...lines].join('\n')
+
+  reply.header('Content-Type', 'text/csv')
+  reply.header('Content-Disposition', 'attachment; filename="contacts.csv"')
+  return csv
 })
 
 app.post('/contacts/import', { preValidation: [app.authenticate] }, async (request, reply) => {
@@ -776,16 +818,39 @@ app.post('/contacts/import', { preValidation: [app.authenticate] }, async (reque
   }
 
   const contacts = await Promise.all(
-    imports.map(async (row) => prisma.contact.create({
-      data: {
-        tenantId: user.tenantId,
-        name: row.name,
-        email: row.email || null,
-        phone: row.phone || null,
-        status: row.status,
-        consent: row.consent,
-      },
-    })),
+    imports.map(async (row) => {
+      const existing = await prisma.contact.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          OR: [
+            ...(row.email ? [{ email: row.email }] : []),
+            ...(row.phone ? [{ phone: row.phone }] : []),
+          ],
+        },
+      })
+      if (existing) {
+        return prisma.contact.update({
+          where: { id: existing.id },
+          data: {
+            name: row.name || existing.name,
+            email: row.email || existing.email,
+            phone: row.phone || existing.phone,
+            status: row.status || existing.status,
+            consent: row.consent === 'unknown' ? existing.consent : row.consent,
+          },
+        })
+      }
+      return prisma.contact.create({
+        data: {
+          tenantId: user.tenantId,
+          name: row.name,
+          email: row.email || null,
+          phone: row.phone || null,
+          status: row.status,
+          consent: row.consent,
+        },
+      })
+    }),
   )
 
   return reply.code(200).send({

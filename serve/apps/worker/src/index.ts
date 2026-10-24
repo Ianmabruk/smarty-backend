@@ -85,19 +85,43 @@ const worker = new Worker(
     const payload = schema.parse(job.data)
     const deliveryWindow = payload.scheduledFor ? new Date(payload.scheduledFor).toISOString() : 'immediately'
 
-    const result = await dispatchCampaignMessage({
-      channel: payload.channel,
-      to: payload.channel === 'email' ? 'hello@example.com' : '+15551234567',
-      subject: `Campaign: ${payload.campaignName}`,
-      text: payload.template,
-    }, process.env)
+    const contacts = await prisma.contact.findMany({
+      where: { tenantId: payload.tenantId, status: 'active', consent: { not: 'opted_out' } },
+      select: { id: true, name: true, email: true, phone: true },
+      take: Math.max(1, payload.audience || 25),
+    })
 
-    if (!result.ok) {
-      await updateCampaignStatus(payload.campaignId, 'failed')
-      throw new Error(result.reason ?? `${payload.channel} dispatch is not configured.`)
+    let persistedCount = 0
+    let anyFailed = false
+    for (const contact of contacts) {
+      const recipient = payload.channel === 'email' ? (contact.email ?? '') : (contact.phone ?? '')
+      if (!recipient) continue
+      const result = await dispatchCampaignMessage({
+        channel: payload.channel,
+        to: recipient,
+        subject: `Campaign: ${payload.campaignName}`,
+        text: payload.template,
+      }, process.env)
+      if (!result.ok) {
+        anyFailed = true
+        continue
+      }
+      await prisma.messageLog.create({
+        data: {
+          tenantId: payload.tenantId,
+          channel: payload.channel,
+          recipient,
+          status: 'sent',
+        },
+      })
+      persistedCount++
     }
 
-    const persistedCount = await persistDeliveryRecords(payload)
+    if (anyFailed && persistedCount === 0) {
+      await updateCampaignStatus(payload.campaignId, 'failed')
+      throw new Error('All dispatch attempts failed.')
+    }
+
     await updateCampaignStatus(payload.campaignId, 'sent')
 
     console.log(`[${env.WORKER_NAME}] processing job`, {
@@ -108,7 +132,7 @@ const worker = new Worker(
       deliveryWindow,
       channel: payload.channel,
       audience: payload.audience,
-      provider: result.provider,
+      provider: 'brevo',
       persistedCount,
     })
 
@@ -121,7 +145,7 @@ const worker = new Worker(
       tenantId: payload.tenantId,
       campaignId: payload.campaignId ?? null,
       campaignName: payload.campaignName,
-      provider: result.provider,
+      provider: 'brevo',
       persistedCount,
       message: `Scheduled ${payload.channel} delivery to ${payload.audience} recipients ${deliveryWindow === 'immediately' ? 'immediately' : `for ${deliveryWindow}`}`,
     }
