@@ -588,7 +588,7 @@ app.post('/auth/register', async (request, reply) => {
     const tenant = await prisma.tenant.create({
       data: {
         name: body.businessName,
-        slug: body.businessName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+        slug: `${body.businessName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}-${Date.now()}`,
       },
     })
 
