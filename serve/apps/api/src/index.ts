@@ -963,7 +963,7 @@ app.post('/campaigns', { preValidation: [app.authenticate] }, async (request, re
     name: z.string().min(2),
     channel: z.enum(['sms', 'email']),
     template: z.string().min(2),
-    scheduledFor: z.string().optional(),
+    scheduledFor: z.string().optional().transform((v) => (v && v.trim() ? v : undefined)),
     recipientIds: z.array(z.string()).optional(),
   }).parse(request.body)
 
