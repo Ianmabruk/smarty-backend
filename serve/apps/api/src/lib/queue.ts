@@ -8,7 +8,7 @@ const envSchema = z.object({
 
 const env = envSchema.parse(process.env)
 
-const connection = new Redis(env.REDIS_URL)
+const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 1, enableReadyCheck: false, lazyConnect: true })
 const queue = new Queue('serve-jobs', { connection })
 
 export type CampaignDispatchPayload = {
@@ -27,6 +27,7 @@ export async function enqueueCampaignJob(payload: CampaignDispatchPayload) {
     const now = Date.now()
     const delayMs = scheduledFor ? Math.max(0, scheduledFor.getTime() - now) : 0
 
+    await connection.connect().catch(() => undefined)
     const job = await queue.add('campaign-dispatch', payload, {
       ...(delayMs > 0 ? { delay: delayMs } : {}),
     })
