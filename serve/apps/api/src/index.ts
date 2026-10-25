@@ -1014,15 +1014,19 @@ app.post('/campaigns', { preValidation: [app.authenticate] }, async (request, re
     scheduledFor: campaign.scheduledFor ? campaign.scheduledFor.toISOString() : null,
   })
 
-  const persistedCampaign = queueResult.queued
-    ? await prisma.campaign.update({
-        where: { id: campaign.id },
-        data: { status: 'queued' },
-      })
-    : await prisma.campaign.update({
-        where: { id: campaign.id },
-        data: { status: 'draft' },
-      })
+  let persistedCampaign
+  if (queueResult.queued) {
+    persistedCampaign = await prisma.campaign.update({ where: { id: campaign.id }, data: { status: 'queued' } })
+  } else {
+    // Fallback: dispatch in-process when Redis/worker unavailable
+    const contacts = await prisma.contact.findMany({ where: { tenantId: user.tenantId, status: 'active', consent: { not: 'opted_out' } }, select: { email: true, phone: true } })
+    for (const c of contacts) {
+      const to = campaign.channel === 'email' ? (c.email ?? '') : (c.phone ?? '')
+      if (!to) continue
+      await dispatchCampaignMessage({ channel: campaign.channel as 'sms'|'email', to, subject: `Campaign: ${campaign.name}`, text: campaign.template }, process.env)
+    }
+    persistedCampaign = await prisma.campaign.update({ where: { id: campaign.id }, data: { status: 'sent' } })
+  }
 
   return reply.code(201).send({
     campaign: persistedCampaign,
