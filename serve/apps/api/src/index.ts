@@ -76,6 +76,33 @@ app.decorate('authenticate', async function (request: FastifyRequest, reply: Fas
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase()
 }
+function slugify(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'tenant'
+}
+
+async function createTenantWithUniqueSlug(name: string) {
+  const base = slugify(name)
+  let slug = base
+  let attempts = 0
+
+  while (attempts < 5) {
+    try {
+      return await prisma.tenant.create({
+        data: { name, slug },
+      })
+    } catch (error: any) {
+      if (error?.code === 'P2002' && error?.meta?.target?.includes('slug')) {
+        slug = `${base}-${randomBytes(4).toString('hex')}`
+        attempts++
+        continue
+      }
+      throw error
+    }
+  }
+
+  throw new Error('Unable to create a unique tenant slug')
+}
+
 
 function normalizeWebsiteUrl(rawUrl: string) {
   const trimmed = rawUrl.trim()
@@ -585,12 +612,7 @@ app.post('/auth/register', async (request, reply) => {
       return reply.code(409).send({ message: 'User already exists' })
     }
 
-    const tenant = await prisma.tenant.create({
-      data: {
-        name: body.businessName,
-        slug: `${body.businessName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}-${Date.now()}`,
-      },
-    })
+    const tenant = await createTenantWithUniqueSlug(body.businessName)
 
     const user = await prisma.user.create({
       data: {
@@ -963,7 +985,14 @@ app.post('/campaigns', { preValidation: [app.authenticate] }, async (request, re
     name: z.string().min(2),
     channel: z.enum(['sms', 'email']),
     template: z.string().min(2),
-    scheduledFor: z.string().optional().transform((v) => (v && v.trim() ? v : undefined)),
+    scheduledFor: z.preprocess((val) => {
+      if (val === '' || val === null || val === undefined) return undefined
+      if (typeof val === 'string') {
+        const trimmed = val.trim()
+        return trimmed ? trimmed : undefined
+      }
+      return val
+    }, z.string().optional()),
     recipientIds: z.array(z.string()).optional(),
   }).parse(request.body)
 

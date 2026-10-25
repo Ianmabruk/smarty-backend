@@ -1,10 +1,38 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
+import { randomBytes } from 'node:crypto'
 import { prisma } from '../lib/prisma.js'
 import { hashPassword, verifyPassword } from '../lib/security.js'
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase()
+}
+
+function slugify(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'tenant'
+}
+
+async function createTenantWithUniqueSlug(name: string) {
+  const base = slugify(name)
+  let slug = base
+  let attempts = 0
+
+  while (attempts < 5) {
+    try {
+      return await prisma.tenant.create({
+        data: { name, slug },
+      })
+    } catch (error: any) {
+      if (error?.code === 'P2002' && error?.meta?.target?.includes('slug')) {
+        slug = `${base}-${randomBytes(4).toString('hex')}`
+        attempts++
+        continue
+      }
+      throw error
+    }
+  }
+
+  throw new Error('Unable to create a unique tenant slug')
 }
 
 export async function authRoutes(app: FastifyInstance) {
@@ -23,9 +51,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(409).send({ message: 'Email already registered' })
     }
 
-    const tenant = await prisma.tenant.create({
-      data: { name: body.businessName, slug: `${body.businessName.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}` },
-    })
+    const tenant = await createTenantWithUniqueSlug(body.businessName)
 
     const user = await prisma.user.create({
       data: {
