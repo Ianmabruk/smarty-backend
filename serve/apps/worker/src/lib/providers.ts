@@ -61,12 +61,27 @@ export async function dispatchCampaignMessage(
       }
     }
 
-    return {
-      ok: true,
-      channel: 'email',
-      provider: 'brevo',
-      status: 'sent',
-      messageId: `brevo:${Date.now()}`,
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': config.brevoApiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { email: config.senderEmail, name: config.senderName || config.senderEmail },
+          to: [{ email: payload.to }],
+          subject: payload.subject ?? 'Campaign',
+          textContent: payload.text,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        return { ok: false, channel: 'email', provider: 'brevo', status: 'failed', reason: (data as any)?.message ?? `Brevo error ${res.status}` }
+      }
+      return { ok: true, channel: 'email', provider: 'brevo', status: 'sent', messageId: (data as any)?.messageId ?? `brevo:${Date.now()}` }
+    } catch (e) {
+      return { ok: false, channel: 'email', provider: 'brevo', status: 'failed', reason: String(e) }
     }
   }
 
@@ -87,6 +102,29 @@ export async function dispatchCampaignMessage(
       provider: config.smsProvider,
       status: 'failed',
       reason: 'The destination phone number is invalid for SMS sends.',
+    }
+  }
+
+  if (config.smsProvider === 'twilio') {
+    const sid = process.env.SMS_ACCOUNT_SID || process.env.TWILIO_ACCOUNT_SID
+    const token = process.env.SMS_AUTH_TOKEN || process.env.TWILIO_AUTH_TOKEN
+    if (!sid || !token) {
+      return { ok: false, channel: 'sms', provider: 'twilio', status: 'not_configured', reason: 'Twilio credentials missing.' }
+    }
+    try {
+      const body = new URLSearchParams({ To: payload.to, From: config.smsSenderId, Body: payload.text })
+      const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+        method: 'POST',
+        headers: { Authorization: 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        return { ok: false, channel: 'sms', provider: 'twilio', status: 'failed', reason: (data as any)?.message ?? `Twilio error ${res.status}` }
+      }
+      return { ok: true, channel: 'sms', provider: 'twilio', status: 'sent', messageId: (data as any)?.sid ?? `twilio:${Date.now()}` }
+    } catch (e) {
+      return { ok: false, channel: 'sms', provider: 'twilio', status: 'failed', reason: String(e) }
     }
   }
 
