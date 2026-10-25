@@ -24,7 +24,7 @@ const schema = z.object({
   audience: z.number().int().nonnegative().default(0),
   channel: z.enum(['sms', 'email']),
   template: z.string(),
-  scheduledFor: z.string().datetime().nullable().optional(),
+  scheduledFor: z.string().nullable().optional(),
 })
 
 async function updateCampaignStatus(campaignId: string | undefined, status: 'queued' | 'sent' | 'failed') {
