@@ -25,6 +25,12 @@ services:
           property: connectionString
       - key: REDIS_URL
         sync: false
+      - key: EMAIL_PROVIDER
+        value: gmass
+      - key: GMASS_API_KEY
+        sync: false
+      - key: GMASS_API_URL
+        value: https://api.gmass.co/v1/send
       - key: BREVO_API_KEY
         sync: false
       - key: BREVO_SENDER_EMAIL
@@ -66,6 +72,12 @@ services:
           property: connectionString
       - key: REDIS_URL
         sync: false
+      - key: EMAIL_PROVIDER
+        value: gmass
+      - key: GMASS_API_KEY
+        sync: false
+      - key: GMASS_API_URL
+        value: https://api.gmass.co/v1/send
       - key: BREVO_API_KEY
         sync: false
       - key: BREVO_SENDER_EMAIL
@@ -107,6 +119,12 @@ services:
           property: connectionString
       - key: REDIS_URL
         sync: false
+      - key: EMAIL_PROVIDER
+        value: gmass
+      - key: GMASS_API_KEY
+        sync: false
+      - key: GMASS_API_URL
+        value: https://api.gmass.co/v1/send
       - key: BREVO_API_KEY
         sync: false
       - key: BREVO_SENDER_EMAIL
@@ -148,6 +166,12 @@ services:
           property: connectionString
       - key: REDIS_URL
         sync: false
+      - key: EMAIL_PROVIDER
+        value: gmass
+      - key: GMASS_API_KEY
+        sync: false
+      - key: GMASS_API_URL
+        value: https://api.gmass.co/v1/send
       - key: BREVO_API_KEY
         sync: false
       - key: BREVO_SENDER_EMAIL
@@ -194,6 +218,12 @@ services:
           property: connectionString
       - key: REDIS_URL
         sync: false
+      - key: EMAIL_PROVIDER
+        value: gmass
+      - key: GMASS_API_KEY
+        sync: false
+      - key: GMASS_API_URL
+        value: https://api.gmass.co/v1/send
       - key: SMS_PROVIDER
         value: brevo
       - key: SMS_SENDER_ID

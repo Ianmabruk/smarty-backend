@@ -1,5 +1,7 @@
 export type ProviderConfig = {
+  emailProvider: 'brevo' | 'gmass'
   brevoApiKey: string
+  gmassApiKey: string
   senderEmail: string
   senderName: string
   smsProvider: string
@@ -18,22 +20,33 @@ export type CampaignDispatchResult = {
   reason?: string
 }
 
+const EMAIL_ADDRESS_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function normalizeEmail(value: string): string {
+  const normalized = (value ?? '').trim()
+  return EMAIL_ADDRESS_RE.test(normalized) ? normalized : ''
+}
+
 export function getProviderConfig(input: NodeJS.ProcessEnv = process.env): ProviderConfig {
+  const emailProvider = ((input.EMAIL_PROVIDER ?? 'brevo') as string).trim().toLowerCase() === 'gmass' ? 'gmass' : 'brevo'
   const brevoApiKey = (input.BREVO_API_KEY ?? '').trim()
-  const senderEmail = (input.BREVO_SENDER_EMAIL ?? '').trim()
+  const gmassApiKey = (input.GMASS_API_KEY ?? '').trim()
+  const senderEmail = normalizeEmail((emailProvider === 'gmass' ? (input.GMASS_SENDER_EMAIL ?? input.BREVO_SENDER_EMAIL ?? '') : (input.BREVO_SENDER_EMAIL ?? '')))
   const senderName = (input.BREVO_SENDER_NAME ?? '').trim()
   const smsProvider = (input.SMS_PROVIDER ?? 'none').trim().toLowerCase()
   const smsApiKey = (input.SMS_API_KEY ?? '').trim()
   const smsSenderId = (input.SMS_SENDER_ID ?? '').trim()
 
   return {
+    emailProvider,
     brevoApiKey,
+    gmassApiKey,
     senderEmail,
     senderName,
     smsProvider,
     smsApiKey,
     smsSenderId,
-    emailConfigured: Boolean(brevoApiKey && senderEmail),
+    emailConfigured: Boolean((emailProvider === 'gmass' ? gmassApiKey : brevoApiKey) && senderEmail),
     smsConfigured: Boolean(smsProvider && smsProvider !== 'none' && smsApiKey),
   }
 }
@@ -62,6 +75,35 @@ export async function dispatchCampaignMessage(
     }
 
     try {
+      const senderEmail = normalizeEmail(payload.sender?.email ?? config.senderEmail)
+      if (!senderEmail) {
+        return { ok: false, channel: 'email', provider: config.emailProvider, status: 'not_configured', reason: 'The configured sender email is invalid. Add a verified sender email before sending email.' }
+      }
+
+      if (config.emailProvider === 'gmass') {
+        const gmassUrl = (process.env.GMASS_API_URL ?? 'https://api.gmass.co/v1/send').trim()
+        const res = await fetch(gmassUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${config.gmassApiKey}`,
+          },
+          body: JSON.stringify({
+            from: senderEmail,
+            fromName: config.senderName || 'Serve Platform',
+            to: [{ email: payload.to }],
+            subject: payload.subject ?? 'Campaign',
+            html: payload.text,
+            text: payload.text,
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          return { ok: false, channel: 'email', provider: 'gmass', status: 'failed', reason: (data as any)?.message ?? (data as any)?.error ?? `GMass error ${res.status}` }
+        }
+        return { ok: true, channel: 'email', provider: 'gmass', status: 'sent', messageId: (data as any)?.messageId ?? (data as any)?.id ?? `gmass:${Date.now()}` }
+      }
+
       const res = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: {

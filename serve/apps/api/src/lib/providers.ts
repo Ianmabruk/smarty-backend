@@ -1,5 +1,7 @@
 export type ProviderConfig = {
+  emailProvider: 'brevo' | 'gmass'
   brevoApiKey: string
+  gmassApiKey: string
   senderEmail: string
   senderName: string
   smsProvider: string
@@ -15,7 +17,7 @@ export type ProviderConfig = {
 export type ProviderStatusSummary = {
   email: {
     status: 'configured' | 'not_configured' | 'unauthorized'
-    provider: 'brevo' | null
+    provider: 'brevo' | 'gmass' | null
     sender: string | null
     message?: string
   }
@@ -29,10 +31,18 @@ export type ProviderStatusSummary = {
 }
 
 const DEFAULT_SMS_PROVIDER = 'none'
+const EMAIL_ADDRESS_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function normalizeEmail(value: string): string {
+  const normalized = (value ?? '').trim()
+  return EMAIL_ADDRESS_RE.test(normalized) ? normalized : ''
+}
 
 export function getProviderConfig(input: NodeJS.ProcessEnv = process.env): ProviderConfig {
+  const emailProvider = ((input.EMAIL_PROVIDER ?? 'brevo') as string).trim().toLowerCase() === 'gmass' ? 'gmass' : 'brevo'
   const brevoApiKey = (input.BREVO_API_KEY ?? '').trim()
-  const senderEmail = (input.BREVO_SENDER_EMAIL ?? '').trim()
+  const gmassApiKey = (input.GMASS_API_KEY ?? '').trim()
+  const senderEmail = normalizeEmail((emailProvider === 'gmass' ? (input.GMASS_SENDER_EMAIL ?? input.BREVO_SENDER_EMAIL ?? '') : (input.BREVO_SENDER_EMAIL ?? '')))
   const senderName = (input.BREVO_SENDER_NAME ?? '').trim()
   const smsProvider = (input.SMS_PROVIDER ?? DEFAULT_SMS_PROVIDER).trim().toLowerCase()
   const smsApiKey = (input.SMS_API_KEY ?? '').trim()
@@ -45,7 +55,9 @@ export function getProviderConfig(input: NodeJS.ProcessEnv = process.env): Provi
   const twilioAuthToken = smsAuthToken || (smsApiKey.includes(':') ? smsApiKey.slice(smsApiKey.indexOf(':') + 1) : smsApiKey)
 
   return {
+    emailProvider,
     brevoApiKey,
+    gmassApiKey,
     senderEmail,
     senderName,
     smsProvider,
@@ -54,7 +66,7 @@ export function getProviderConfig(input: NodeJS.ProcessEnv = process.env): Provi
     smsAccountSid: twilioAccountSid,
     smsAuthToken: twilioAuthToken,
     smsSenderId,
-    emailConfigured: Boolean(brevoApiKey && senderEmail),
+    emailConfigured: Boolean((emailProvider === 'gmass' ? gmassApiKey : brevoApiKey) && senderEmail),
     smsConfigured: Boolean(
       smsProvider &&
       smsProvider !== DEFAULT_SMS_PROVIDER &&
@@ -74,14 +86,14 @@ export function getProviderStatus(input: NodeJS.ProcessEnv = process.env): Provi
   const email = config.emailConfigured
     ? {
         status: 'configured' as const,
-        provider: 'brevo' as const,
+        provider: config.emailProvider,
         sender: config.senderEmail,
       }
     : {
         status: 'not_configured' as const,
         provider: null,
         sender: null,
-        message: 'Brevo requires a configured API key and authorized sender address.',
+        message: 'Your email provider requires a configured API key and authorized sender address.',
       }
 
   const normalizedSmsProvider = config.smsProvider && config.smsProvider !== DEFAULT_SMS_PROVIDER ? config.smsProvider : null
@@ -175,7 +187,47 @@ export async function sendBrevoEmail(payload: {
   const config = getProviderConfig(input)
 
   if (!config.emailConfigured) {
-    throw new Error('Brevo is not configured. Add the API key and sender address before sending email.')
+    throw new Error('Email provider is not configured. Add the API key and sender address before sending email.')
+  }
+
+  const senderEmail = normalizeEmail(payload.sender?.email ?? config.senderEmail)
+  if (!senderEmail) {
+    throw new Error('The configured sender email is invalid. Add a verified sender email before sending email.')
+  }
+
+  if (config.emailProvider === 'gmass') {
+    const gmassUrl = (input.GMASS_API_URL ?? 'https://api.gmass.co/v1/send').trim()
+    const gmResponse = await fetch(gmassUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${config.gmassApiKey}`,
+      },
+      body: JSON.stringify({
+        from: senderEmail,
+        fromName: config.senderName || 'Serve Platform',
+        to: payload.to.map(({ email, name }) => ({ email, name })),
+        subject: payload.subject,
+        html: payload.htmlContent ?? payload.textContent ?? '',
+        text: payload.textContent ?? payload.htmlContent ?? '',
+      }),
+      signal: AbortSignal.timeout(15_000),
+    })
+
+    const parsed = await gmResponse.json().catch(() => ({}))
+    const body = parsed as { message?: string; messageId?: string; id?: string }
+
+    if (!gmResponse.ok) {
+      throw new Error(body.message ?? body.id ?? 'GMass rejected the outbound email request.')
+    }
+
+    return {
+      ok: true,
+      provider: 'gmass',
+      messageId: body.messageId ?? body.id ?? null,
+      response: body,
+    }
   }
 
   const sender = payload.sender ?? { email: config.senderEmail, name: config.senderName }
@@ -197,7 +249,7 @@ export async function sendBrevoEmail(payload: {
     signal: AbortSignal.timeout(15_000),
   })
 
-const parsed = await response.json().catch(() => ({}))
+  const parsed = await response.json().catch(() => ({}))
   const body = parsed as { message?: string; messageId?: string }
 
   if (!response.ok) {
